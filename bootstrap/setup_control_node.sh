@@ -2,7 +2,7 @@
 
 apt update
 
-cd ~/home-lab-security-automtion
+cd "/home/$SUDO_USER/home-lab-security-automation"
 
 apt install -y python3-venv pip
 
