@@ -55,11 +55,17 @@ cover/
 *.mo
 *.pot
 
-# Django stuff:
+# Data and Logs:
 *.log
 local_settings.py
+*.sqlite3
 db.sqlite3
 db.sqlite3-journal
+*.db
+ai_agents/**/logs/
+ai_agents/**/data/
+ai_agents/**/chroma_db/
+ai_agents/**/vector_storage/
 
 # Flask stuff:
 instance/
@@ -135,14 +141,24 @@ celerybeat.pid
 *.sage.py
 
 # Environments
+*.env
+.env.*
 .env
 .envrc
+!.env.example
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+.vault_pass
+*.pem
+*.key
+id_rsa*
+
+# Infrastructure
+vault.yml
 
 # Spyder project settings
 .spyderproject
