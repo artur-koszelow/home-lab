@@ -3,8 +3,8 @@
 echo -e '\nEXECUTING: apt update\n'
 sudo apt update
 
-echo -e '\nEXECUTING: cd "/home/$USER/home-lab-security-automation"\n'
-cd "/home/$USER/home-lab-security-automation"
+echo -e '\nEXECUTING: cd "/home/$USER/home-lab"\n'
+cd "/home/$USER/home-lab"
 
 echo -e '\nEXECUTING: sudo apt install -y python3-venv pip\n'
 sudo apt install -y python3-venv pip
