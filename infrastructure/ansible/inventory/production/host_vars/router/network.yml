@@ -1,0 +1,26 @@
+---
+# ==============================================================================
+# HOST VARS — host_vars/router/network.yml
+# Scope: Network domain + Ansible connection variables for the router host.
+# Rule:  NO vault_ references. Consume ONLY clean vars from vault.yml mappings.
+# ==============================================================================
+
+# --- Ansible Connection (ansible.netcommon.network_cli) -----------------------
+ansible_connection: ansible.netcommon.network_cli
+ansible_network_os: community.routeros.routeros
+
+# '+ct' disables RouterOS interactive terminal (Color/Terminal mode).
+# Without it, the SSH session returns ANSI escape codes and a menu-driven
+# shell that network_cli cannot parse. '+ct' forces raw-text output,
+# which is the only format the collection can reliably interpret.
+ansible_user: "{{ admin_user }}+ct"
+
+ansible_port: "{{ port_ssh }}"
+
+# SSH key auth — key path is set globally in ansible.cfg (private_key_file)
+# ansible_ssh_private_key_file is inherited; override here only if different.
+
+# --- Ansible Host (management IP) --------------------------------------------
+# The router's management IP should be added to host_vars/router/vault.yml
+# as vault_router_mgmt_ip, mapped in network.yml as ansible_host.
+ansible_host: "{{ router_mgmt_ip }}"

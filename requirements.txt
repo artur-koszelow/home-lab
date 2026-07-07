@@ -1,2 +1,5 @@
 ansible
 ansible-lint
+ansible-pylibssh   # Required by ansible.netcommon.network_cli for RouterOS SSH transport
+pre-commit
+yamllint

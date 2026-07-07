@@ -1,0 +1,11 @@
+---
+# ==============================================================================
+# HOST VARS — host_vars/control_node/vars.yml
+# Scope: Plaintext variable mappings for the control_node host vault secrets.
+# Rule:  Every value MUST reference a vault_ variable. No hardcoded data.
+#        Domain files (network.yml, etc.) consume ONLY these vars.
+# ==============================================================================
+
+# --- Connection Variables ------------------------------------------------------
+ipv4: "{{ vault_ipv4 }}"
+mac_wlan0: "{{ vault_mac_wlan0 }}"

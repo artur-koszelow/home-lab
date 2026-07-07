@@ -1,0 +1,79 @@
+---
+# ==============================================================================
+# GROUP VARS — group_vars/routers/services.yml
+# Scope: DNS, NTP, system clock, service ports, sniffer, and automation scripts.
+# Rule:  NO hardcoded IPs or server addresses. Reference ONLY vars from vars.yml.
+# ==============================================================================
+
+# --- DNS Configuration --------------------------------------------------------
+dns_config:
+  allow_remote_requests: yes    # Router acts as DNS resolver for all LAN clients
+  cache_size: "4096KiB"
+  servers:
+    - "{{ dns_primary }}"
+    - "{{ dns_secondary }}"
+
+# --- NTP Client ---------------------------------------------------------------
+ntp_client:
+  enabled: yes
+
+ntp_servers:
+  - address: "{{ ntp_primary }}"
+  - address: "{{ ntp_secondary }}"
+
+# --- System Clock -------------------------------------------------------------
+system_clock:
+  time_zone_autodetect: no
+  time_zone_name: "Europe/Warsaw"
+
+# --- IP Services (port overrides and disabled services) ----------------------
+# Non-standard ports for SSH and Winbox reduce automated scanner noise.
+# All unused/insecure services are explicitly disabled (defense-in-depth).
+router_services:
+  - name: ftp
+    disabled: yes
+  - name: telnet
+    disabled: yes
+  - name: www
+    disabled: yes
+  - name: winbox
+    port: "{{ port_winbox }}"   # References host_vars/router/network.yml
+    disabled: no
+  - name: api
+    disabled: yes
+  - name: api-ssl
+    disabled: yes
+  - name: ssh
+    port: "{{ port_ssh }}"      # References host_vars/router/network.yml
+    disabled: no
+
+# --- Tool Sniffer Configuration -----------------------------------------------
+# Filters packet captures to the router's own ISP-assigned IPv6 block only.
+sniffer_config:
+  filter_interface: ether1
+  filter_src_ipv6_exclude: "{{ sniffer_filter_ipv6 }}"
+
+# --- System Script ------------------------------------------------------------
+# Log archival script: saves previous day's logs to file, updates tracking variable.
+system_scripts:
+  - name: zapis_wczorajszych_logow
+    owner: "{{ admin_user }}"   # References host_vars/router/network.yml
+    dont_require_permissions: yes
+    policy: "ftp,read,write,policy,test"
+    source: "{{ lookup('file', playbook_dir ~ '/../files/mikrotik/zapis_wczorajszych_logow.rsc') }}"
+
+# --- System Scheduler ---------------------------------------------------------
+# Triggers daily log archival at 01:01. Update/reboot sections are commented out.
+system_schedulers:
+  - name: daily-conservation
+    comment: "Log archival, updates, optional reboot after update"
+    interval: 1d
+    start_date: "2025-10-24"
+    start_time: "01:01:00"
+    policy: "ftp,read,write,policy,test"
+    on_event: "{{ lookup('file', playbook_dir ~ '/../files/mikrotik/daily_conservation.rsc') }}"
+
+# --- SSH Configuration --------------------------------------------------------
+ssh_config:
+  host_key_type: ed25519
+  password_authentication: no

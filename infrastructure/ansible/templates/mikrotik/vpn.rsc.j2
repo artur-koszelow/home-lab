@@ -1,0 +1,40 @@
+{# ==============================================================================
+   TEMPLATE: vpn.rsc.j2
+   Consumes: wg_interfaces, wg_server_addressing, wg_peers, wg_ipv6_routes
+             (from group_vars/routers/wireguard.yml + vars.yml)
+============================================================================== #}
+
+# ==============================================================================
+# SECTION: VPN (WireGuard)
+# ==============================================================================
+
+# --- WireGuard Interface Definition -------------------------------------------
+/interface wireguard
+{% for wg in wg_interfaces %}
+add listen-port={{ wg.listen_port }} mtu={{ wg.mtu }} name={{ wg.name }}
+{% endfor %}
+
+# --- WireGuard Server IPv4 Address --------------------------------------------
+/ip address
+add address={{ wg_server_addressing.ipv4_address }} \
+    interface={{ iface_vpn }} \
+    network={{ wg_server_addressing.ipv4_network }}
+
+# --- WireGuard Peers ----------------------------------------------------------
+/interface wireguard peers
+{% for peer in wg_peers %}
+add allowed-address={{ peer.allowed_address_ipv4 }},{{ peer.allowed_address_ipv6 }} \
+    interface={{ peer.interface }} \
+    name={{ peer.name }} \
+    public-key="{{ peer.public_key }}"
+{% endfor %}
+
+# --- IPv6 Static Routes for WireGuard Peers -----------------------------------
+/ipv6 route
+{% for peer in wg_peers %}
+add \
+    dst-address={{ peer.allowed_address_ipv6 }} \
+    gateway={{ peer.interface }} \
+    pref-src="" \
+    routing-table=main
+{% endfor %}

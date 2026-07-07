@@ -16,4 +16,10 @@ echo -e '\nEXECUTING:source venv/bin/activate\n'
 source venv/bin/activate
 
 echo -e '\nEXECUTING: pip install -r requirements.txt\n'
-pip install -r requirements.txt 
+pip install -r requirements.txt
+
+echo -e '\nEXECUTING: ansible-galaxy collection install (community.routeros, ansible.netcommon)\n'
+ansible-galaxy collection install -r requirements.yml
+
+echo -e '\nEXECUTING: pre-commit install\n'
+pre-commit install

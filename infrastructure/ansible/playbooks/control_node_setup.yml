@@ -1,0 +1,22 @@
+---
+- name: Control Node (Local Laptop) Configuration
+  hosts: control_node
+  become: true # Requires sudo for package installation on your laptop
+  tasks:
+    - name: Ensure base development utilities are installed
+      ansible.builtin.apt:
+        name:
+          - git
+          - curl
+          - build-essential
+          - python3-venv
+          - python3-pip
+        state: present
+        update_cache: true
+
+    - name: Verify git configuration is present (example user configuration)
+      community.general.git_config:
+        name: user.name
+        scope: global
+        value: "Admin User"
+      become: false # Run as local user, not root

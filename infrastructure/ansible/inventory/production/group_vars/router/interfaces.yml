@@ -1,0 +1,230 @@
+---
+# ==============================================================================
+# GROUP VARS — group_vars/routers/interfaces.yml
+# Scope: All interface, addressing, and connectivity configuration.
+# Rule:  NO hardcoded IPs, MACs, or SSIDs. Reference ONLY vars from vars.yml.
+# ==============================================================================
+
+# --- Bridge Interfaces --------------------------------------------------------
+interfaces_bridge:
+  - name: "{{ network_topology.trusted.iface }}"
+    description: "Trusted network — admin and personal devices"
+    ipv4_address: "{{ network_topology.trusted.ip }}"
+    ipv4_network: "{{ network_topology.trusted.network }}"
+
+  - name: "{{ network_topology.work.iface }}"
+    description: "Work network bridge"
+    ipv4_address: "{{ network_topology.work.ip }}"
+    ipv4_network: "{{ network_topology.work.network }}"
+
+  - name: "{{ network_topology.iot.iface }}"
+    description: "IoT / smart home devices"
+    ipv4_address: "{{ network_topology.iot.ip }}"
+    ipv4_network: "{{ network_topology.iot.network }}"
+
+  - name: "{{ network_topology.guests.iface }}"
+    description: "Guest network — client-isolated"
+    ipv4_address: "{{ network_topology.guests.ip }}"
+    ipv4_network: "{{ network_topology.guests.network }}"
+
+  - name: "{{ network_topology.servers.iface }}"
+    description: "Server zone — RPi homelab"
+    ipv4_address: "{{ network_topology.servers.ip }}"
+    ipv4_network: "{{ network_topology.servers.network }}"
+
+  - name: "{{ network_topology.media.iface }}"
+    description: "Media devices — smart TV, streaming"
+    ipv4_address: "{{ network_topology.media.ip }}"
+    ipv4_network: "{{ network_topology.media.network }}"
+
+# --- Physical Ethernet Interfaces ---------------------------------------------
+interfaces_ethernet:
+  - name: ether1
+    mtu: 1460           # Reduced MTU to prevent fragmentation on PPPoE/ISP tunnel
+    role: wan
+
+  - name: ether2
+    ipv4_address: "{{ network_topology.failsafe.ip }}"
+    ipv4_network: "{{ network_topology.failsafe.network }}"
+    comment: "FAILSAFE Admin Port"
+    role: failsafe
+
+# --- Physical Port → Bridge Assignments ---------------------------------------
+interfaces_bridge_ports:
+  - bridge: "{{ network_topology.servers.iface }}"
+    interface: ether5
+    disabled: no
+
+  - bridge: "{{ network_topology.trusted.iface }}"
+    interface: ether2
+    disabled: yes   # Failsafe port — physically connects to trusted network but kept disabled
+                    # in bridge to avoid routing loops (ether2 has its own IP)
+
+# --- Interface Lists (logical grouping for firewall rules) --------------------
+interface_lists:
+  - name: LISTA-LAN
+  - name: LISTA-WAN
+  - name: LISTA-VPN
+
+interface_list_members:
+  - interface: "{{ network_topology.trusted.iface }}"
+    list: LISTA-LAN
+  - interface: "{{ network_topology.work.iface }}"
+    list: LISTA-LAN
+  - interface: "{{ network_topology.iot.iface }}"
+    list: LISTA-LAN
+  - interface: "{{ network_topology.guests.iface }}"
+    list: LISTA-LAN
+  - interface: "{{ network_topology.servers.iface }}"
+    list: LISTA-LAN
+  - interface: "{{ network_topology.media.iface }}"
+    list: LISTA-LAN
+  - interface: ether1
+    list: LISTA-WAN
+  - interface: "{{ network_topology.vpn.iface }}"
+    list: LISTA-LAN    # WireGuard is part of LAN for inter-VLAN routing purposes
+  - interface: "{{ network_topology.vpn.iface }}"
+    list: LISTA-VPN    # AND part of VPN for MSS-clamping and firewall matching
+
+# --- Wi-Fi Security Profiles --------------------------------------------------
+wifi_security_profiles:
+  - name: "{{ wifi_profile_domowy }}"
+    auth_types: "wpa2-psk,wpa3-psk"
+    encryption: "ccmp,gcmp"
+    wps: disable
+
+  - name: "{{ wifi_profile_goscie }}"
+    auth_types: "wpa2-psk,wpa3-psk"
+    encryption: "ccmp,gcmp"
+    wps: disable
+
+# --- Wi-Fi Master Interfaces (physical radios) --------------------------------
+wifi_master_interfaces:
+  - name: wifi1
+    band: "5ghz-ax"
+    width: "20/40/80mhz"
+    comment: "_master_5g"
+    ssid: "_master_5g"     # Hidden master SSID — VAPs inherit radio settings
+    hide_ssid: yes
+    mode: ap
+    country: Poland
+    security: "{{ wifi_profile_domowy }}"
+
+  - name: wifi2
+    band: "2ghz-ax"
+    width: "20mhz"
+    comment: "_master_2g"
+    ssid: "_master_2g"
+    hide_ssid: yes
+    mode: ap
+    country: Poland
+    security: "{{ wifi_profile_domowy }}"
+
+# --- Wi-Fi Virtual Access Points (VAPs) ---------------------------------------
+wifi_vaps:
+  - name: "wifi1-{{ network_topology.trusted.iface }}"
+    master: wifi1
+    ssid: "{{ network_topology.trusted.wifi_ssid }}"
+    bridge: "{{ network_topology.trusted.iface }}"
+    mac_address: "{{ network_topology.trusted.mac_wifi1 }}"
+    security: "{{ wifi_profile_domowy }}"
+    client_isolation: no
+
+  - name: "wifi1-{{ network_topology.work.iface }}"
+    master: wifi1
+    ssid: "{{ network_topology.work.wifi_ssid }}"
+    bridge: "{{ network_topology.work.iface }}"
+    mac_address: "{{ network_topology.work.mac_wifi1 }}"
+    security: "{{ wifi_profile_domowy }}"
+    client_isolation: no
+
+  - name: "wifi1-{{ network_topology.media.iface }}"
+    master: wifi1
+    ssid: "{{ network_topology.media.wifi_ssid }}"
+    bridge: "{{ network_topology.media.iface }}"
+    mac_address: "{{ network_topology.media.mac_wifi1 }}"
+    security: "{{ wifi_profile_domowy }}"
+    client_isolation: no
+
+  - name: "wifi2-{{ network_topology.iot.iface }}"
+    master: wifi2
+    ssid: "{{ network_topology.iot.wifi_ssid }}"
+    bridge: "{{ network_topology.iot.iface }}"
+    mac_address: "{{ network_topology.iot.mac_wifi2 }}"
+    security: "{{ wifi_profile_domowy }}"
+    client_isolation: no
+
+  - name: "wifi2-{{ network_topology.guests.iface }}"
+    master: wifi2
+    ssid: "{{ network_topology.guests.wifi_ssid }}"
+    bridge: "{{ network_topology.guests.iface }}"
+    mac_address: "{{ network_topology.guests.mac_wifi2 }}"
+    security: "{{ wifi_profile_goscie }}"
+    client_isolation: yes   # Guests cannot reach each other
+
+# --- IPv4 DHCP Client (WAN uplink) -------------------------------------------
+ipv4_dhcp_clients:
+  - name: client1
+    interface: ether1
+    use_peer_dns: no    # Use local DNS resolver, not ISP-provided
+    use_peer_ntp: no    # Use local NTP config
+
+# --- IPv6 Global Settings -----------------------------------------------------
+ipv6_settings:
+  accept_router_advertisements: yes   # Required to obtain ISP IPv6 prefix
+
+# --- IPv6 DHCP Client (prefix delegation from ISP) ---------------------------
+ipv6_dhcp_clients:
+  - interface: ether1
+    pool_name: "{{ ipv6_pool_play_prefix }}"
+    pool_prefix_length: 64
+    request: prefix
+    add_default_route: yes
+
+# --- IPv6 Addresses -----------------------------------------------------------
+# Bridges use prefix delegation (from-pool). A static address is also assigned
+# to the trusted bridge for WireGuard server reachability.
+ipv6_addresses:
+  - interface: "{{ network_topology.trusted.iface }}"
+    from_pool: "{{ ipv6_pool_play_prefix }}"
+    # No address offset = :0:: (first address in pool block)
+
+  - interface: "{{ network_topology.work.iface }}"
+    from_pool: "{{ ipv6_pool_play_prefix }}"
+    address: "0:0:0:1::"
+
+  - interface: "{{ network_topology.iot.iface }}"
+    from_pool: "{{ ipv6_pool_play_prefix }}"
+    address: "0:0:0:2::"
+
+  - interface: "{{ network_topology.guests.iface }}"
+    from_pool: "{{ ipv6_pool_play_prefix }}"
+    address: "0:0:0:3::"
+
+  - interface: "{{ network_topology.servers.iface }}"
+    from_pool: "{{ ipv6_pool_play_prefix }}"
+    address: "0:0:0:4::"
+
+  - interface: "{{ network_topology.media.iface }}"
+    from_pool: "{{ ipv6_pool_play_prefix }}"
+    address: "0:0:0:5::"
+
+  - interface: "{{ network_topology.trusted.iface }}"
+    address: "{{ ipv6_wg_server_static }}"
+    advertise: no
+    comment: "Static IP for WireGuard Server"
+
+# --- IPv6 Neighbor Discovery (RA) --------------------------------------------
+ipv6_nd_interfaces:
+  - interface: "{{ network_topology.trusted.iface }}"
+    advertise_dns: yes
+  - interface: "{{ network_topology.work.iface }}"
+    advertise_dns: yes
+  - interface: "{{ network_topology.iot.iface }}"
+    advertise_dns: yes
+  - interface: "{{ network_topology.guests.iface }}"
+    advertise_dns: yes
+  - interface: "{{ network_topology.servers.iface }}"
+    advertise_dns: yes
+  - interface: "{{ network_topology.media.iface }}"
+    advertise_dns: yes

@@ -1,0 +1,119 @@
+{# ==============================================================================
+   TEMPLATE: firewall.rsc.j2
+   Consumes: firewall_address_lists, ipv4_filter_rules, ipv4_nat_rules,
+             ipv4_mangle_rules, firewall_service_ports,
+             ipv6_filter_rules, ipv6_nat_rules, ipv6_mangle_rules
+             (from group_vars/routers/firewall.yml + vars.yml)
+
+   Macro:    render_filter_rule — renders a single firewall rule from a dict,
+             conditionally emitting only the fields that are present.
+             This avoids 40+ duplicate if-blocks across 60+ rules.
+============================================================================== #}
+
+{# -------------------------------------------------------------------------- #}
+{# MACRO: render_filter_rule                                                   #}
+{# Renders one 'add' line for /ip firewall filter or /ipv6 firewall filter.   #}
+{# All optional RouterOS parameters are emitted only when defined in the dict. #}
+{# -------------------------------------------------------------------------- #}
+{% macro render_filter_rule(rule) -%}
+add action={{ rule.action }} chain={{ rule.chain -}}
+{% if rule.comment is defined %} comment="{{ rule.comment }}"{% endif -%}
+{% if rule.connection_state is defined %} connection-state={{ rule.connection_state }}{% endif -%}
+{% if rule.disabled is defined and rule.disabled %} disabled=yes{% endif -%}
+{% if rule.dst_address_type is defined %} dst-address-type={{ rule.dst_address_type }}{% endif -%}
+{% if rule.dst_port is defined %} dst-port={{ rule.dst_port }}{% endif -%}
+{% if rule.icmp_options is defined %} icmp-options={{ rule.icmp_options }}{% endif -%}
+{% if rule.in_interface is defined %} in-interface={{ rule.in_interface }}{% endif -%}
+{% if rule.in_interface_list is defined %} in-interface-list={{ rule.in_interface_list }}{% endif -%}
+{% if rule.jump_target is defined %} jump-target={{ rule.jump_target }}{% endif -%}
+{% if rule.log is defined and rule.log %} log=yes{% endif -%}
+{% if rule.log_prefix is defined %} log-prefix={{ rule.log_prefix }}{% endif -%}
+{% if rule.out_interface is defined %} out-interface={{ rule.out_interface }}{% endif -%}
+{% if rule.out_interface_list is defined %} out-interface-list={{ rule.out_interface_list }}{% endif -%}
+{% if rule.protocol is defined %} protocol={{ rule.protocol }}{% endif -%}
+{% if rule.src_address is defined %} src-address={{ rule.src_address }}{% endif -%}
+{% if rule.src_address_list is defined %} src-address-list={{ rule.src_address_list }}{% endif -%}
+{% if rule.tcp_flags is defined %} tcp-flags={{ rule.tcp_flags }}{% endif -%}
+{%- endmacro %}
+
+{# -------------------------------------------------------------------------- #}
+{# MACRO: render_mangle_rule                                                   #}
+{# Renders one 'add' line for /ip firewall mangle or /ipv6 firewall mangle.   #}
+{# -------------------------------------------------------------------------- #}
+{% macro render_mangle_rule(rule) -%}
+add action={{ rule.action }} chain={{ rule.chain -}}
+{% if rule.comment is defined %} comment="{{ rule.comment }}"{% endif -%}
+{% if rule.in_interface_list is defined %} in-interface-list={{ rule.in_interface_list }}{% endif -%}
+{% if rule.new_mss is defined %} new-mss={{ rule.new_mss }}{% endif -%}
+{% if rule.out_interface_list is defined %} out-interface-list={{ rule.out_interface_list }}{% endif -%}
+{% if rule.passthrough is defined %} passthrough={{ 'yes' if rule.passthrough else 'no' }}{% endif -%}
+{% if rule.protocol is defined %} protocol={{ rule.protocol }}{% endif -%}
+{% if rule.tcp_flags is defined %} tcp-flags={{ rule.tcp_flags }}{% endif -%}
+{%- endmacro %}
+
+{# -------------------------------------------------------------------------- #}
+{# MACRO: render_nat_rule                                                      #}
+{# -------------------------------------------------------------------------- #}
+{% macro render_nat_rule(rule) -%}
+add action={{ rule.action }} chain={{ rule.chain -}}
+{% if rule.comment is defined %} comment="{{ rule.comment }}"{% endif -%}
+{% if rule.disabled is defined and rule.disabled %} disabled=yes{% endif -%}
+{% if rule.dst_address_type is defined %} dst-address-type={{ rule.dst_address_type }}{% endif -%}
+{% if rule.dst_port is defined %} dst-port={{ rule.dst_port }}{% endif -%}
+{% if rule.in_interface_list is defined %} in-interface-list={{ rule.in_interface_list }}{% endif -%}
+{% if rule.out_interface_list is defined %} out-interface-list={{ rule.out_interface_list }}{% endif -%}
+{% if rule.protocol is defined %} protocol={{ rule.protocol }}{% endif -%}
+{% if rule.src_address is defined %} src-address={{ rule.src_address }}{% endif -%}
+{%- endmacro %}
+
+# ==============================================================================
+# SECTION: Firewall
+# ==============================================================================
+
+# --- Firewall Address Lists ---------------------------------------------------
+/ip firewall address-list
+{% for entry in firewall_address_lists %}
+add address={{ entry.address }} list={{ entry.list }}
+{% endfor %}
+
+# --- IPv4 Firewall Filter Rules -----------------------------------------------
+/ip firewall filter
+{% for rule in ipv4_filter_rules %}
+{{ render_filter_rule(rule) }}
+{% endfor %}
+
+# --- IPv4 Firewall Mangle Rules (MSS Clamping) --------------------------------
+/ip firewall mangle
+{% for rule in ipv4_mangle_rules %}
+{{ render_mangle_rule(rule) }}
+{% endfor %}
+
+# --- IPv4 Firewall NAT Rules --------------------------------------------------
+/ip firewall nat
+{% for rule in ipv4_nat_rules %}
+{{ render_nat_rule(rule) }}
+{% endfor %}
+
+# --- Firewall Service Ports (connection tracking ALG) -------------------------
+/ip firewall service-port
+{% for sp in firewall_service_ports %}
+set {{ sp.name }} disabled={{ 'yes' if sp.disabled else 'no' }}
+{% endfor %}
+
+# --- IPv6 Firewall Filter Rules -----------------------------------------------
+/ipv6 firewall filter
+{% for rule in ipv6_filter_rules %}
+{{ render_filter_rule(rule) }}
+{% endfor %}
+
+# --- IPv6 Firewall Mangle Rules (MSS Clamping) --------------------------------
+/ipv6 firewall mangle
+{% for rule in ipv6_mangle_rules %}
+{{ render_mangle_rule(rule) }}
+{% endfor %}
+
+# --- IPv6 Firewall NAT Rules (preparedness stubs — both disabled) -------------
+/ipv6 firewall nat
+{% for rule in ipv6_nat_rules %}
+{{ render_nat_rule(rule) }}
+{% endfor %}

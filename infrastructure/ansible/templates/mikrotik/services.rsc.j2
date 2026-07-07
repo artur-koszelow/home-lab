@@ -1,0 +1,69 @@
+{# ==============================================================================
+   TEMPLATE: services.rsc.j2
+   Consumes: dns_config, ntp_client, ntp_servers, system_clock,
+             router_services, sniffer_config, system_scripts, system_schedulers
+             (from group_vars/routers/services.yml + vars.yml + host_vars)
+============================================================================== #}
+
+# ==============================================================================
+# SECTION: Services
+# ==============================================================================
+
+# --- DNS Configuration --------------------------------------------------------
+/ip dns
+set allow-remote-requests={{ 'yes' if dns_config.allow_remote_requests else 'no' }} \
+    cache-size={{ dns_config.cache_size }} \
+    servers={{ dns_config.servers | join(',') }}
+
+# --- IP Services (port overrides and security hardening) ---------------------
+/ip service
+{% for svc in router_services %}
+set {{ svc.name }}{% if svc.disabled is defined and svc.disabled %} disabled=yes{% elif svc.port is defined %} port={{ svc.port }}{% endif %}
+
+{% endfor %}
+
+# --- IP SSH (Security Hardening) ----------------------------------------------
+/ip ssh
+set host-key-type={{ ssh_config.host_key_type }} \
+    password-authentication={{ 'yes' if ssh_config.password_authentication else 'no' }}
+
+# --- System Clock -------------------------------------------------------------
+/system clock
+set time-zone-autodetect={{ 'yes' if system_clock.time_zone_autodetect else 'no' }} \
+    time-zone-name={{ system_clock.time_zone_name }}
+
+# --- NTP Client ---------------------------------------------------------------
+/system ntp client
+set enabled={{ 'yes' if ntp_client.enabled else 'no' }}
+
+/system ntp client servers
+{% for ntp in ntp_servers %}
+add address={{ ntp.address }}
+{% endfor %}
+
+# --- System Scripts -----------------------------------------------------------
+/system script
+{% for script in system_scripts %}
+add dont-require-permissions={{ 'yes' if script.dont_require_permissions else 'no' }} \
+    name={{ script.name }} \
+    owner={{ script.owner }} \
+    policy={{ script.policy }} \
+    source={{ script.source | to_json }}
+{% endfor %}
+
+# --- System Scheduler ---------------------------------------------------------
+/system scheduler
+{% for job in system_schedulers %}
+add comment="{{ job.comment }}" \
+    interval={{ job.interval }} \
+    name={{ job.name }} \
+    on-event={{ job.on_event | to_json }} \
+    policy={{ job.policy }} \
+    start-date={{ job.start_date }} \
+    start-time={{ job.start_time }}
+{% endfor %}
+
+# --- Tool Sniffer -------------------------------------------------------------
+/tool sniffer
+set filter-interface={{ sniffer_config.filter_interface }} \
+    filter-src-ipv6-address=!{{ sniffer_config.filter_src_ipv6_exclude }}
