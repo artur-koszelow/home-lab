@@ -63,9 +63,34 @@ db.sqlite3
 db.sqlite3-journal
 *.db
 ai_agents/**/logs/
-ai_agents/**/data/
 ai_agents/**/chroma_db/
 ai_agents/**/vector_storage/
+
+# ============================================================
+# HEALTH & PERSONAL DATA (Private — use *.example.* versions)
+# ============================================================
+# Real user profile files contain PII/PHI and must never be committed.
+# Commit only the corresponding *.example.md schema files.
+ai_agents/**/profiles/*.md
+!ai_agents/**/profiles/*.example.md
+
+# Real health data (JSON: metrics, labs, bp_history, supplements)
+# Schema reference files are committed as *.example.json
+ai_agents/**/data/
+!ai_agents/**/data/*.example.json
+
+# Medical records (PDFs, scans, documents)
+ai_agents/**/records/
+!ai_agents/**/records/README.md
+
+# ============================================================
+# INFRASTRUCTURE SENSITIVE CONFIGS
+# ============================================================
+# Real router/switch configuration files contain SSIDs, MAC addresses,
+# WireGuard keys, IPv6 prefixes, and other network secrets.
+# Commit only the *.example.rsc schema file.
+infrastructure/mikrotik/*.rsc
+!infrastructure/mikrotik/*.example.rsc
 
 # Flask stuff:
 instance/
