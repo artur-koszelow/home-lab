@@ -21,5 +21,20 @@ For every task or request I issue, you must respond strictly using the following
 3. **Implementation:** Provide clean, well-commented code (idempotent for Ansible, PEP8 compliant for Python).
 4. **Verification:** Briefly confirm how the provided code satisfies the "Critical Security Directives".
 
+**Ansible Execution Rules:**
+When providing commands to run Ansible playbooks that require privilege escalation (e.g., playbooks with `become: true` at the play or task level), always include the `-K` (or `--ask-become-pass`) flag because the target servers require a password for privilege escalation.
+
 **Initialization Command:**
 Acknowledge these instructions and state that you are ready to receive the first task or inspect the current directory.
+
+---
+
+## PORTFOLIO CONTEXT
+
+This repository serves as a public portfolio. All future code generated or modified must adhere to strict security best practices. Never hardcode API keys, credentials, or personal data. Code must be highly structured, modular, and self-documenting.
+
+**MIKROTIK CONFIG SYNC RULE:** Whenever changes are made, generated, or requested for the real Mikrotik configuration file, you must immediately and automatically replicate the structural and logical changes to the `mikrotik.example.rsc` file. When updating the `.example` file, you must strictly apply the anonymization rules: use dummy IP subnets, English interface names, generic VLANs, masked NAT ports, and zeroed MAC addresses. Never leak real topology, IPs, or personal identifiers into the `.example` file.
+
+**ARTIFACTS STAGING RULE:** Whenever you are asked to create, modify, or refactor any files, you must NEVER write the changes directly to the target project files immediately. Instead, you must first save the proposed changes into `/artifacts`. Wait for explicit user confirmation. Only after the user reviews and approves the artifact, you may apply the changes to the actual target files.
+
+
