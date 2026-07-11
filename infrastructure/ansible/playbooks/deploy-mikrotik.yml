@@ -1,0 +1,63 @@
+---
+# ==============================================================================
+# PLAYBOOK: deploy-mikrotik.yml
+# Purpose:  PRODUCTION DEPLOYMENT — renders main.rsc.j2 and pushes the
+#           configuration to the MikroTik router via SSH (network_cli).
+#
+# SAFETY CHECKLIST — run in this order:
+#   1. Render & inspect:  ansible-playbook playbooks/test-mikrotik-render.yml --ask-vault-pass
+#   2. Check mode:        ansible-playbook playbooks/deploy-mikrotik.yml --ask-vault-pass --check --diff
+#   3. Deploy:            ansible-playbook playbooks/deploy-mikrotik.yml --ask-vault-pass
+#
+# IMPORTANT: community.routeros.config sends config as a transaction.
+#   If any command fails, RouterOS will reject the entire block.
+#   Backup your current config on the router before deploying:
+#     /export file=backup_pre_ansible
+# ==============================================================================
+
+- name: "DEPLOY | Push Mikrotik RSC configuration"
+  hosts: router
+  gather_facts: false
+  # Connection plugin is set in host_vars/router/network.yml:
+  #   ansible_connection: ansible.netcommon.network_cli
+  #   ansible_network_os: community.routeros.routeros
+
+  tasks:
+
+    # --- Step 1: Render the template on the control node ----------------------
+    - name: "Render main.rsc.j2 to a temporary local file"  # noqa: no-relative-paths
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/mikrotik/main.rsc.j2"
+        dest: "/tmp/mikrotik_{{ inventory_hostname }}_deploy.rsc"
+        mode: "0600"
+      delegate_to: localhost
+
+    # --- Step 2: Read the rendered RSC content --------------------------------
+    - name: "Load rendered RSC content into a variable"
+      ansible.builtin.slurp:
+        src: "/tmp/mikrotik_{{ inventory_hostname }}_deploy.rsc"
+      register: rsc_content_raw
+      delegate_to: localhost
+
+    # --- Step 3: Push configuration to the router ----------------------------
+    # community.routeros.config applies the RSC block as a transaction.
+    # In --check mode, it will report what WOULD change without applying.
+    # In --diff mode, it will show the before/after delta.
+    - name: "Apply RSC configuration to router ({{ inventory_hostname }})"
+      community.routeros.command:
+        commands:
+          - "{{ rsc_content_raw.content | b64decode }}"
+      register: deploy_result
+
+    # --- Step 4: Report result ------------------------------------------------
+    - name: "Deployment result"
+      ansible.builtin.debug:
+        var: deploy_result
+      when: deploy_result is defined
+
+    # --- Step 5: Clean up temporary file --------------------------------------
+    - name: "Remove temporary rendered RSC file"
+      ansible.builtin.file:
+        path: "/tmp/mikrotik_{{ inventory_hostname }}_deploy.rsc"
+        state: absent
+      delegate_to: localhost

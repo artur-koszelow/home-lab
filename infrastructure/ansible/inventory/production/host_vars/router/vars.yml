@@ -1,0 +1,20 @@
+---
+# ==============================================================================
+# HOST VARS — host_vars/router/vars.yml
+# Scope: Plaintext variable mappings for the router host vault secrets.
+# Rule:  Every value MUST reference a vault_ variable. No hardcoded data.
+#        Domain files (network.yml, etc.) consume ONLY these vars.
+# ==============================================================================
+
+# --- Router Hardware Identity --------------------------------------------------
+identity: "{{ vault_identity }}"
+software_id: "{{ vault_software_id }}"
+model: "{{ vault_model }}"
+serial_number: "{{ vault_serial_number }}"
+
+# --- Management Service Ports -------------------------------------------------
+port_ssh: "{{ vault_port_ssh }}"
+port_winbox: "{{ vault_port_winbox }}"
+
+# --- Router Management IP -----------------------------------------------------
+router_mgmt_ip: "{{ vault_router_mgmt_ip }}"

@@ -1,0 +1,22 @@
+---
+# ==============================================================================
+# Ansible Galaxy Collections & Roles Requirements
+# Usage: ansible-galaxy collection install -r requirements.yml
+# Run this once on the control node after setting up the venv.
+# ==============================================================================
+
+collections:
+
+  # --- Existing (used by base_setup.yml / hardening.yml) --------------------
+  - name: community.general
+    # Provides: ufw, system utilities
+
+  # --- MikroTik RouterOS Automation -----------------------------------------
+  - name: community.routeros
+    # Provides: community.routeros.config (push RSC config blocks)
+    #           community.routeros.facts  (gather device facts)
+    #           community.routeros.command (run arbitrary RouterOS CLI commands)
+
+  - name: ansible.netcommon
+    # Provides: ansible.netcommon.network_cli (connection plugin for RouterOS SSH)
+    #           ansible.netcommon.cli_parse   (parse structured output)

@@ -1,0 +1,106 @@
+---
+# ==============================================================================
+# GROUP VARS — group_vars/routers/dhcp.yml
+# Scope: IP pools, DHCP servers, network definitions, and static leases.
+# Rule:  NO hardcoded IPs or MACs. Reference ONLY vars from vars.yml.
+# ==============================================================================
+
+# --- IP Address Pools ---------------------------------------------------------
+dhcp_pools:
+  - name: dhcp_pool0
+    ranges: "{{ network_topology.trusted.dhcp_range }}"
+
+  - name: dhcp_pool1
+    ranges: "{{ network_topology.work.dhcp_range }}"
+
+  - name: dhcp_pool2
+    ranges: "{{ network_topology.iot.dhcp_range }}"
+
+  - name: dhcp_pool3
+    ranges: "{{ network_topology.guests.dhcp_range }}"
+
+  - name: dhcp_pool4
+    ranges: "{{ network_topology.media.dhcp_range }}"
+
+  - name: pool-failsafe
+    ranges: "{{ network_topology.failsafe.dhcp_range }}"
+
+  - name: pool-serwery
+    ranges: "{{ network_topology.servers.dhcp_range }}"
+
+# --- DHCP Servers -------------------------------------------------------------
+dhcp_servers:
+  - name: dhcp1
+    pool: dhcp_pool0
+    interface: "{{ network_topology.trusted.iface }}"
+
+  - name: dhcp2
+    pool: dhcp_pool1
+    interface: "{{ network_topology.work.iface }}"
+
+  - name: dhcp3
+    pool: dhcp_pool2
+    interface: "{{ network_topology.iot.iface }}"
+
+  - name: dhcp4
+    pool: dhcp_pool3
+    interface: "{{ network_topology.guests.iface }}"
+
+  - name: dhcp5
+    pool: dhcp_pool4
+    interface: "{{ network_topology.media.iface }}"
+
+  - name: dhcp-failsafe
+    pool: pool-failsafe
+    interface: ether2
+    comment: "Interface not running — physical failsafe admin port"
+
+  - name: dhcp-serwery
+    pool: pool-serwery
+    interface: "{{ network_topology.servers.iface }}"
+
+# --- DHCP Network Definitions -------------------------------------------------
+# Defines gateway and DNS resolver for each segment. The server zone intentionally
+# has no dns-server= field — servers use static DNS configuration.
+dhcp_networks:
+  - address: "{{ network_topology.trusted.subnet }}"
+    gateway: "{{ network_topology.trusted.gateway }}"
+    dns_server: "{{ network_topology.trusted.gateway }}"    # Trusted clients use router as DNS resolver
+
+  - address: "{{ network_topology.work.subnet }}"
+    gateway: "{{ network_topology.work.gateway }}"
+    dns_server: "{{ network_topology.work.gateway }}"
+
+  - address: "{{ network_topology.iot.subnet }}"
+    gateway: "{{ network_topology.iot.gateway }}"
+    dns_server: "{{ network_topology.iot.gateway }}"
+
+  - address: "{{ network_topology.guests.subnet }}"
+    gateway: "{{ network_topology.guests.gateway }}"
+    dns_server: "{{ network_topology.guests.gateway }}"
+
+  - address: "{{ network_topology.servers.subnet }}"
+    gateway: "{{ network_topology.servers.gateway }}"
+    # No dns_server — servers manage their own DNS resolution
+
+  - address: "{{ network_topology.media.subnet }}"
+    gateway: "{{ network_topology.media.gateway }}"
+    dns_server: "{{ network_topology.media.gateway }}"
+
+  - address: "{{ network_topology.failsafe.subnet }}"
+    gateway: "{{ network_topology.failsafe.gateway }}"
+    # No dns_server — failsafe port for emergency admin access only
+
+# --- Static DHCP Leases -------------------------------------------------------
+dhcp_static_leases:
+  - address: "{{ lease_admin_ws_ip }}"
+    mac_address: "{{ lease_admin_ws_mac }}"
+    client_id: "{{ lease_admin_ws_client_id }}"
+    comment: "Admin Workstation"
+    server: dhcp1
+
+  - address: "{{ lease_server_ip }}"
+    mac_address: "{{ lease_server_mac }}"
+    client_id: "{{ lease_server_client_id }}"
+    comment: "RPi Server"
+    server: dhcp-serwery

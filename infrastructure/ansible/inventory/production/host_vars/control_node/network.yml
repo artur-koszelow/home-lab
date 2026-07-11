@@ -1,0 +1,8 @@
+---
+# ==============================================================================
+# HOST VARS — host_vars/control_node/network.yml
+# Scope: Network domain configuration for the control_node host.
+# Rule:  NO vault_ references. Consume ONLY clean vars from vars.yml.
+# ==============================================================================
+
+ansible_host: "{{ ipv4 }}"

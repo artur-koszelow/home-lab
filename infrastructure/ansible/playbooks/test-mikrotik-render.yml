@@ -1,0 +1,35 @@
+---
+# ==============================================================================
+# PLAYBOOK: test-mikrotik-render.yml
+# Purpose:  LOCAL DRY-RUN — renders the main.rsc.j2 template into /tmp/
+#           for visual inspection WITHOUT touching the router.
+#
+# Usage:
+#   cd infrastructure/ansible
+#   ansible-playbook playbooks/test-mikrotik-render.yml --ask-vault-pass
+#
+# Output:
+#   /tmp/mikrotik_rendered.rsc  — inspect this file before running deploy
+# ==============================================================================
+
+- name: "DRY-RUN | Render Mikrotik RSC template locally"
+  hosts: router
+  gather_facts: false
+  connection: local   # Runs entirely on the control node — no router SSH needed
+
+  tasks:
+
+    - name: "Render main.rsc.j2 → /tmp/mikrotik_rendered.rsc"  # noqa: no-relative-paths
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/mikrotik/main.rsc.j2"
+        dest: "/tmp/mikrotik_{{ inventory_hostname }}_rendered.rsc"
+        mode: "0600"   # Restrict permissions — rendered config contains sensitive data
+      delegate_to: localhost
+
+    - name: "Print rendered file path"
+      ansible.builtin.debug:
+        msg: >
+          Rendered config written to:
+          /tmp/mikrotik_{{ inventory_hostname }}_rendered.rsc
+          Review with: cat /tmp/mikrotik_{{ inventory_hostname }}_rendered.rsc
+      delegate_to: localhost

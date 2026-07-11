@@ -1,0 +1,34 @@
+---
+# ==============================================================================
+# GROUP VARS — group_vars/routers/wireguard.yml
+# Scope: WireGuard VPN server interface, peer definitions, and IPv6 routing.
+# Rule:  NO hardcoded IPs or keys. Reference ONLY vars from vars.yml.
+# NOTE:  This file supersedes wg_peers.yml. Remove wg_peers.yml manually to
+#        avoid variable conflicts (wg_peers list will be re-defined here).
+# ==============================================================================
+
+# --- WireGuard Server Interface -----------------------------------------------
+wg_interfaces:
+  - name: "{{ network_topology.vpn.iface }}"
+    listen_port: "{{ network_topology.vpn.listen_port }}"
+    mtu: 1420           # 1420 = WireGuard overhead headroom for LAN MTU 1500
+
+# --- WireGuard Peers ----------------------------------------------------------
+# Replaces wg_peers.yml. Each peer gets allowed-address for both IPv4 and IPv6.
+wg_peers:
+  - name: Peer_01
+    interface: "{{ network_topology.vpn.iface }}"
+    allowed_address_ipv4: "{{ wg_ipv4_peer_01 }}"
+    allowed_address_ipv6: "{{ wg_ipv6_peer_01 }}"
+    public_key: "{{ wg_public_key_peer_01 }}"
+
+  - name: Peer_02
+    interface: "{{ network_topology.vpn.iface }}"
+    allowed_address_ipv4: "{{ wg_ipv4_peer_02 }}"
+    allowed_address_ipv6: "{{ wg_ipv6_peer_02 }}"
+    public_key: "{{ wg_public_key_peer_02 }}"
+
+# --- WireGuard Server Addressing ----------------------------------------------
+wg_server_addressing:
+  ipv4_address: "{{ network_topology.vpn.server_ip }}"
+  ipv4_network: "{{ network_topology.vpn.network }}"

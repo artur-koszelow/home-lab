@@ -1,0 +1,8 @@
+---
+# ==============================================================================
+# GROUP VARS — group_vars/all/vars.yml
+# Scope: Plaintext variable mappings for all global vault secrets.
+# Rule:  Every value MUST reference a vault_ variable. No hardcoded data.
+# ==============================================================================
+
+admin_user: "{{ vault_admin_user }}"

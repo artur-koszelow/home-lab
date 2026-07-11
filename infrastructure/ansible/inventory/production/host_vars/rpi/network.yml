@@ -1,0 +1,8 @@
+---
+# ==============================================================================
+# HOST VARS — host_vars/rpi/network.yml
+# Scope: Network domain configuration for the rpi host.
+# Rule:  NO vault_ references. Consume ONLY clean vars from vars.yml.
+# ==============================================================================
+
+ansible_host: "{{ ipv4 }}"

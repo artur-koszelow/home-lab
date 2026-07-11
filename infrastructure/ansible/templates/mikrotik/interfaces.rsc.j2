@@ -1,0 +1,121 @@
+{# ==============================================================================
+   TEMPLATE: interfaces.rsc.j2
+   Consumes: interfaces_bridge, interfaces_ethernet, interfaces_bridge_ports,
+             interface_lists, interface_list_members, wifi_security_profiles,
+             wifi_master_interfaces, wifi_vaps, ipv4_dhcp_clients,
+             ipv6_settings, ipv6_dhcp_clients, ipv6_addresses, ipv6_nd_interfaces
+             (from group_vars/routers/interfaces.yml + vars.yml)
+============================================================================== #}
+
+# ==============================================================================
+# SECTION: Interfaces
+# ==============================================================================
+
+# --- Bridge Interfaces --------------------------------------------------------
+/interface bridge
+{% for bridge in interfaces_bridge %}
+add name={{ bridge.name }}
+{% endfor %}
+
+# --- Ethernet MTU & Settings --------------------------------------------------
+/interface ethernet
+{% for eth in interfaces_ethernet %}
+{% if eth.mtu is defined %}
+set [ find default-name={{ eth.name }} ] mtu={{ eth.mtu }}
+{% endif %}
+{% endfor %}
+
+# --- Interface Lists ----------------------------------------------------------
+/interface list
+{% for lst in interface_lists %}
+add name={{ lst.name }}
+{% endfor %}
+
+# --- Wi-Fi Security Profiles --------------------------------------------------
+/interface wifi security
+{% for profile in wifi_security_profiles %}
+add authentication-types={{ profile.auth_types }} disabled=no \
+    encryption={{ profile.encryption }} name={{ profile.name }} wps={{ profile.wps }}
+{% endfor %}
+
+# --- Wi-Fi Master Radios (physical radios — set, not add) --------------------
+/interface wifi
+{% for wifi in wifi_master_interfaces %}
+set [ find default-name={{ wifi.name }} ] \
+    channel.band={{ wifi.band }} .width={{ wifi.width }} \
+    comment={{ wifi.comment }} \
+    configuration.country={{ wifi.country }} \
+    .hide-ssid={{ 'yes' if wifi.hide_ssid else 'no' }} \
+    .mode={{ wifi.mode }} .ssid={{ wifi.ssid }} \
+    disabled=no security={{ wifi.security }}
+{% endfor %}
+
+# --- Wi-Fi Virtual Access Points (VAPs) --------------------------------------
+{% for vap in wifi_vaps %}
+add configuration.mode=ap .ssid={{ vap.ssid }} \
+    datapath.bridge={{ vap.bridge }} \
+    .client-isolation={{ 'yes' if vap.client_isolation else 'no' }} \
+    disabled=no \
+    mac-address={{ vap.mac_address }} \
+    master-interface={{ vap.master }} \
+    name={{ vap.name }} \
+    security={{ vap.security }}
+{% endfor %}
+
+# --- Bridge Port Assignments --------------------------------------------------
+/interface bridge port
+{% for port in interfaces_bridge_ports %}
+add bridge={{ port.bridge }}{% if port.disabled is defined and port.disabled %} disabled=yes{% endif %} interface={{ port.interface }}
+{% endfor %}
+
+# --- Interface List Members ---------------------------------------------------
+/interface list member
+{% for member in interface_list_members %}
+add interface={{ member.interface }} list={{ member.list }}
+{% endfor %}
+
+# --- IPv4 Addresses -----------------------------------------------------------
+/ip address
+{% for bridge in interfaces_bridge %}
+add address={{ bridge.ipv4_address }} interface={{ bridge.name }} network={{ bridge.ipv4_network }}
+{% endfor %}
+{% for eth in interfaces_ethernet %}
+{% if eth.ipv4_address is defined %}
+add address={{ eth.ipv4_address }}{% if eth.comment is defined %} comment="{{ eth.comment }}"{% endif %} interface={{ eth.name }} network={{ eth.ipv4_network }}
+{% endif %}
+{% endfor %}
+
+# --- IPv4 DHCP Client (WAN) ---------------------------------------------------
+/ip dhcp-client
+{% for client in ipv4_dhcp_clients %}
+add interface={{ client.interface }} name={{ client.name }} \
+    use-peer-dns={{ 'yes' if client.use_peer_dns else 'no' }} \
+    use-peer-ntp={{ 'yes' if client.use_peer_ntp else 'no' }}
+{% endfor %}
+
+# --- IPv6 Global Settings -----------------------------------------------------
+/ipv6 settings
+set accept-router-advertisements={{ 'yes' if ipv6_settings.accept_router_advertisements else 'no' }}
+
+# --- IPv6 DHCP Client (prefix delegation) ------------------------------------
+/ipv6 dhcp-client
+{% for client in ipv6_dhcp_clients %}
+add add-default-route={{ 'yes' if client.add_default_route else 'no' }} \
+    interface={{ client.interface }} \
+    pool-name={{ client.pool_name }} \
+    pool-prefix-length={{ client.pool_prefix_length }} \
+    request={{ client.request }}
+{% endfor %}
+
+# --- IPv6 Addresses -----------------------------------------------------------
+/ipv6 address
+{% for addr in ipv6_addresses %}
+add{% if addr.address is defined %} address={{ addr.address }}{% endif %}{% if addr.advertise is defined %} advertise={{ 'yes' if addr.advertise else 'no' }}{% endif %}{% if addr.comment is defined %} comment="{{ addr.comment }}"{% endif %}{% if addr.from_pool is defined %} from-pool={{ addr.from_pool }}{% endif %} interface={{ addr.interface }}
+{% endfor %}
+
+# --- IPv6 Neighbor Discovery --------------------------------------------------
+/ipv6 nd
+set [ find default=yes ] advertise-dns=yes
+{% for iface in ipv6_nd_interfaces %}
+add advertise-dns={{ 'yes' if iface.advertise_dns else 'no' }} interface={{ iface.interface }}
+{% endfor %}

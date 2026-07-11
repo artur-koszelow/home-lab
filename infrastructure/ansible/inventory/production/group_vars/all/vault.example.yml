@@ -1,6 +1,0 @@
----
-# Network Variables
-secret_rpi_ip: "192.168.0.X"
-
-# User Variables
-secret_rpi_user: "example_user"

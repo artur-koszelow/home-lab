@@ -1,0 +1,14 @@
+---
+# ==============================================================================
+# HOST VARS — host_vars/rpi/vars.yml
+# Scope: Plaintext variable mappings for the rpi host vault secrets.
+# Rule:  Every value MUST reference a vault_ variable. No hardcoded data.
+#        Domain files (network.yml, etc.) consume ONLY these vars.
+# ==============================================================================
+
+# --- Connection Variables ------------------------------------------------------
+ipv4: "{{ vault_ipv4 }}"
+mac_wlan0: "{{ vault_mac_wlan0 }}"
+
+# --- Runtime Settings ---------------------------------------------------------
+ansible_python_interpreter: /usr/bin/python3

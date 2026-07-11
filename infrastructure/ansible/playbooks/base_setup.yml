@@ -1,0 +1,138 @@
+---
+- name: Base Infrastructure Setup and Hardening
+  hosts: rpi_server
+  become: true
+  vars:
+    # Non-privileged system user for running application containers
+    app_user: appuser
+    app_group: appgroup
+    app_uid: 2000
+    app_gid: 2000
+
+  tasks:
+    # ==========================================
+    # 1. System Update and Prerequisite Packages
+    # ==========================================
+    - name: Update apt cache and upgrade system packages
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: safe
+        autoclean: true
+        autoremove: true
+
+    - name: Install system prerequisite packages
+      ansible.builtin.apt:
+        name:
+          - ufw
+          - curl
+          - ca-certificates
+          - gnupg
+          - python3-pip
+          - git
+        state: present
+
+    # ==========================================
+    # 2. Network Security & Firewall (UFW)
+    # ==========================================
+    - name: Set UFW default incoming policy to DENY
+      community.general.ufw:
+        default: deny
+        direction: incoming
+
+    - name: Set UFW default outgoing policy to ALLOW
+      community.general.ufw:
+        default: allow
+        direction: outgoing
+
+    - name: Allow SSH traffic from trusted local network ({{ network_topology.trusted.iface }})
+      community.general.ufw:
+        rule: allow
+        port: '22'
+        proto: tcp
+        from_ip: "{{ network_topology.trusted.subnet }}"
+        comment: "SSH from {{ network_topology.trusted.iface }}"
+
+    - name: Allow SSH traffic from VPN network
+      community.general.ufw:
+        rule: allow
+        port: '22'
+        proto: tcp
+        from_ip: "{{ network_topology.vpn.subnet }}"
+        comment: "SSH from VPN"
+
+    - name: Enable UFW
+      community.general.ufw:
+        state: enabled
+
+    # ==========================================
+    # 4. Docker & Docker Compose Installation
+    # ==========================================
+    - name: Create directory for Docker APT keyring
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Remove old Docker GPG key if present
+      ansible.builtin.file:
+        path: /etc/apt/keyrings/docker.gpg
+        state: absent
+
+    - name: Check if Docker GPG key exists
+      ansible.builtin.stat:
+        path: /etc/apt/keyrings/docker.asc
+      register: docker_gpg_key
+
+    - name: Add Docker official GPG key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/debian/gpg  # RPi OS is Debian-based
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+      when: not docker_gpg_key.stat.exists
+
+    - name: Set up Docker stable repository
+      ansible.builtin.apt_repository:
+        repo: >-
+          deb [arch={{ ansible_facts['architecture'] | replace('x86_64', 'amd64') | replace('aarch64', 'arm64') }}
+          signed-by=/etc/apt/keyrings/docker.asc]
+          https://download.docker.com/linux/debian
+          {{ ansible_facts['distribution_release'] }} stable
+        state: present
+        filename: docker
+
+    - name: Install Docker Engine and plugins
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Ensure Docker service is started and enabled
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    # ==========================================
+    # 5. Principle of Least Privilege User Setup
+    # ==========================================
+    - name: Create non-root group for applications
+      ansible.builtin.group:
+        name: "{{ app_group }}"
+        gid: "{{ app_gid }}"
+        state: present
+
+    - name: Create non-root system user for applications
+      ansible.builtin.user:
+        name: "{{ app_user }}"
+        uid: "{{ app_uid }}"
+        group: "{{ app_group }}"
+        shell: /usr/sbin/nologin
+        system: true
+        create_home: true
+        home: "/home/{{ app_user }}"
+        state: present

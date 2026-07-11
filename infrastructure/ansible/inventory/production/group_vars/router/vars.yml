@@ -1,0 +1,53 @@
+---
+# ==============================================================================
+# GROUP VARS — group_vars/routers/vars.yml
+# Scope: Plaintext variable mappings for all group-level vault secrets.
+# Rule:  Every value MUST reference a vault_ variable. No hardcoded data.
+#        Domain files (interfaces.yml, dhcp.yml, etc.) consume ONLY these vars.
+# ==============================================================================
+
+
+# --- DHCP Static Leases -------------------------------------------------------
+lease_admin_ws_ip: "{{ vault_lease_admin_ws_ip }}"
+lease_admin_ws_mac: "{{ vault_lease_admin_ws_mac }}"
+lease_admin_ws_client_id: "{{ vault_lease_admin_ws_client_id }}"
+lease_server_ip: "{{ vault_lease_server_ip }}"
+lease_server_mac: "{{ vault_lease_server_mac }}"
+lease_server_client_id: "{{ vault_lease_server_client_id }}"
+
+
+# --- WireGuard Peer: Mobile Client 01 -----------------------------------------
+wg_ipv4_peer_01: "{{ vault_wg_ipv4_peer_01 }}"
+wg_ipv6_peer_01: "{{ vault_wg_ipv6_peer_01 }}"
+wg_public_key_peer_01: "{{ vault_wg_public_key_peer_01 }}"
+
+# --- WireGuard Peer: Laptop Client 01 -----------------------------------------
+wg_ipv4_peer_02: "{{ vault_wg_ipv4_peer_02 }}"
+wg_ipv6_peer_02: "{{ vault_wg_ipv6_peer_02 }}"
+wg_public_key_peer_02: "{{ vault_wg_public_key_peer_02 }}"
+
+# --- IPv6 WireGuard Addresses -------------------------------------------------
+ipv6_wg_server_static: "{{ vault_ipv6_wg_server_static }}"
+wg_ipv6_static_route_peer: "{{ vault_wg_ipv6_static_route_peer }}"
+wg_ipv6_subnet: "{{ vault_wg_ipv6_subnet }}"
+
+
+# --- Firewall Address Lists ---------------------------------------------------
+fw_admin_ws_trusted_ip: "{{ vault_fw_admin_ws_trusted_ip }}"
+fw_admin_ws_vpn_ip: "{{ vault_fw_admin_ws_vpn_ip }}"
+
+# --- DNS Servers --------------------------------------------------------------
+dns_primary: "{{ vault_dns_primary }}"
+dns_secondary: "{{ vault_dns_secondary }}"
+
+# --- NTP Servers --------------------------------------------------------------
+ntp_primary: "{{ vault_ntp_primary }}"
+ntp_secondary: "{{ vault_ntp_secondary }}"
+
+# --- Tool Sniffer Filter ------------------------------------------------------
+sniffer_filter_ipv6: "{{ vault_sniffer_filter_ipv6 }}"
+
+# --- Wi-Fi Profiles & IPv6 Pools ----------------------------------------------
+ipv6_pool_play_prefix: "{{ vault_ipv6_pool_play_prefix }}"
+wifi_profile_domowy: "{{ vault_wifi_profile_domowy }}"
+wifi_profile_goscie: "{{ vault_wifi_profile_goscie }}"

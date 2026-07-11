@@ -1,0 +1,11 @@
+---
+# Main entry point for homelab automation
+
+- name: Import control node setup
+  import_playbook: playbooks/control_node_setup.yml
+
+- name: Import base infrastructure setup
+  import_playbook: playbooks/base_setup.yml
+
+- name: Import security hardening
+  import_playbook: playbooks/hardening.yml

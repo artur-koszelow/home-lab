@@ -1,0 +1,700 @@
+---
+# ==============================================================================
+# GROUP VARS — group_vars/routers/firewall.yml
+# Scope: IPv4/IPv6 filter, NAT, mangle rules, address lists, service ports.
+# Rule:  NO hardcoded IPs or ports. Reference ONLY vars from vars.yml / host vars.
+#
+# Architecture:
+#   IPv4 Filter chains: forward, input, FWD-LAN_SEGMENTATION, WAN-LOG-FILTER-INPUT
+#   IPv6 Filter chains: output, forward, input, FWD-LAN_SEGMENTATION,
+#                       LOG-FILTER-WAN-IMPUT, ICMPv6-OUTPUT, ICMPv6-INPUT,
+#                       ICMPv6-FORWARD
+#
+# NOTE: chain=- passthrough "divider" rules from the RSC are structural comments
+#       only and are intentionally OMITTED — they have no functional effect.
+# ==============================================================================
+
+# --- Firewall Address Lists ---------------------------------------------------
+# These lists control which source IPs are permitted admin-level router access.
+# IPs reference vault_ variables via vars.yml to avoid exposing topology.
+firewall_address_lists:
+  - list: ADMIN_ACCESS_TRUSTED
+    address: "{{ fw_admin_ws_trusted_ip }}"   # Admin Workstation (trusted)
+
+  - list: ADMIN_ACCESS_VPN
+    address: "{{ fw_admin_ws_vpn_ip }}"     # Admin Workstation (VPN tunnel IP)
+
+# ==============================================================================
+# IPV4 FIREWALL
+# ==============================================================================
+
+# --- IPv4 Filter Rules (strictly ordered) ------------------------------------
+ipv4_filter_rules:
+
+  # ---- FORWARD chain --------------------------------------------------------
+  - chain: forward
+    action: fasttrack-connection
+    comment: "allow established, related"
+    connection_state: "established,related"
+
+  - chain: forward
+    action: accept
+    comment: "allow established, related"
+    connection_state: "established,related"
+
+  - chain: forward
+    action: drop
+    comment: "drop invalid"
+    connection_state: "invalid"
+
+  - chain: forward
+    action: accept
+    comment: "allow ssh admin to serwer"
+    dst_port: "22"
+    out_interface: "{{ network_topology.servers.iface }}"
+    protocol: tcp
+    src_address_list: ADMIN_ACCESS_WG
+
+  - chain: forward
+    action: accept
+    comment: "allow icmp admin to serwer"
+    out_interface: "{{ network_topology.servers.iface }}"
+    protocol: icmp
+    src_address_list: ADMIN_ACCESS_WG
+
+  - chain: forward
+    action: jump
+    comment: "SEGMENTACJA LAN"
+    in_interface_list: LISTA-LAN
+    jump_target: FWD-LAN_SEGMENTATION
+    out_interface_list: LISTA-LAN
+
+  - chain: forward
+    action: accept
+    comment: "allow LAN to WAN"
+    in_interface_list: LISTA-LAN
+    out_interface_list: LISTA-WAN
+
+  - chain: forward
+    action: accept
+    comment: "allow FAILSAFE to WAN"
+    in_interface: ether2
+    out_interface_list: LISTA-WAN
+
+  - chain: forward
+    action: drop
+    comment: "drop all other forward"
+    log: yes
+    log_prefix: "IPv4_FW_DROP_ALL_FORWARD"
+
+  # ---- INPUT chain ----------------------------------------------------------
+  - chain: input
+    action: accept
+    comment: "allow established, related"
+    connection_state: "established,related"
+
+  - chain: input
+    action: drop
+    comment: "drop invalid"
+    connection_state: "invalid"
+
+  - chain: input
+    action: jump
+    comment: "WAN LOG FILTER - INPUT"
+    jump_target: WAN-LOG-FILTER-INPUT
+
+  - chain: input
+    action: drop
+    comment: "Wyciszenie szumu LAN"
+    dst_port: "67,137,138,5351,5678,21027"
+    in_interface_list: LISTA-LAN
+    protocol: udp
+
+  - chain: input
+    action: accept
+    comment: "allow admin input from trusted"
+    dst_port: "{{ port_winbox }},{{ port_ssh }}"
+    in_interface: "{{ network_topology.trusted.iface }}"
+    protocol: tcp
+    src_address_list: ADMIN_ACCESS_TRUSTED
+
+  - chain: input
+    action: accept
+    comment: "allow admin input from vpn"
+    dst_port: "{{ port_winbox }},{{ port_ssh }}"
+    in_interface: "{{ network_topology.vpn.iface }}"
+    protocol: tcp
+    src_address_list: ADMIN_ACCESS_VPN
+
+  - chain: input
+    action: accept
+    comment: "allow FAILSAFE input form ether2 - czy nie musze dodac portow?"
+    in_interface: ether2
+
+  - chain: input
+    action: accept
+    comment: "allow LAN to DNS/NTP input"
+    dst_port: "53,123"
+    in_interface: "{{ network_topology.trusted.iface }}"
+    protocol: udp
+
+  - chain: input
+    action: accept
+    comment: "allow LAN to DNS/TCP input"
+    dst_port: "53"
+    in_interface: "{{ network_topology.trusted.iface }}"
+    protocol: tcp
+
+  - chain: input
+    action: accept
+    comment: "allow ICMP from wg"
+    in_interface: "{{ network_topology.vpn.iface }}"
+    protocol: icmp
+
+  - chain: input
+    action: accept
+    comment: "Allow Server Zone (RPi) to DNS/NTP input"
+    dst_port: "53,123"
+    in_interface: "{{ network_topology.servers.iface }}"
+    protocol: udp
+
+  - chain: input
+    action: accept
+    comment: "Allow Server Zone (RPi) to DNS/TCP input"
+    dst_port: "53"
+    in_interface: "{{ network_topology.servers.iface }}"
+    protocol: tcp
+
+  - chain: input
+    action: drop
+    comment: "drop all other input"
+    log: yes
+    log_prefix: "IPv4_drop_all_other_input"
+
+  # ---- Custom chain: FWD-LAN_SEGMENTATION -----------------------------------
+  - chain: FWD-LAN_SEGMENTATION
+    action: accept
+    comment: "allow trusted to server"
+    in_interface: "{{ network_topology.trusted.iface }}"
+    out_interface: "{{ network_topology.servers.iface }}"
+
+  - chain: FWD-LAN_SEGMENTATION
+    action: accept
+    comment: "allow guests to TV"
+    in_interface: "{{ network_topology.guests.iface }}"
+    out_interface: "{{ network_topology.iot.iface }}"
+    disabled: yes   # Preparedness rule — enable when a smart TV is on IoT VLAN
+
+  - chain: FWD-LAN_SEGMENTATION
+    action: accept
+    comment: "allow trusted to printer"
+    in_interface: "{{ network_topology.trusted.iface }}"
+    out_interface: "{{ network_topology.iot.iface }}"
+    disabled: yes   # Preparedness rule — enable when a printer is on IoT VLAN
+
+  - chain: FWD-LAN_SEGMENTATION
+    action: drop
+    comment: "segmentacja LAN"
+    in_interface_list: LISTA-LAN
+    out_interface_list: LISTA-LAN
+    log: yes
+    log_prefix: "IPv4_FW_DROP_LAN_TO_LAN"
+
+  - chain: FWD-LAN_SEGMENTATION
+    action: return
+    comment: "RETURN SEGMENTACJA LAN"
+
+  # ---- Custom chain: WAN-LOG-FILTER-INPUT -----------------------------------
+  - chain: WAN-LOG-FILTER-INPUT
+    action: drop
+    comment: "wyciszenie_rozgloszenia_do_ether1"
+    dst_port: "67,68,123,137,138,2014,15600,57621"
+    in_interface_list: LISTA-WAN
+    protocol: udp
+
+  - chain: WAN-LOG-FILTER-INPUT
+    action: drop
+    comment: "wyciszenie_IGMP_do_ether1"
+    in_interface_list: LISTA-WAN
+    protocol: igmp
+
+  - chain: WAN-LOG-FILTER-INPUT
+    action: drop
+    comment: "wyciszenie_ACK_scan"
+    connection_state: "new"
+    in_interface_list: LISTA-WAN
+    protocol: tcp
+    tcp_flags: "ack,!syn"
+
+  - chain: WAN-LOG-FILTER-INPUT
+    action: return
+    comment: "RETURN LOG FILTER-WAN-IMPUT"
+
+# --- IPv4 NAT Rules -----------------------------------------------------------
+ipv4_nat_rules:
+  - chain: srcnat
+    action: masquerade
+    comment: "NAT"
+    out_interface_list: LISTA-WAN
+
+  - chain: srcnat
+    action: masquerade
+    comment: "WireGuard?"
+    out_interface_list: LISTA-WAN
+    src_address: "{{ network_topology.vpn.subnet }}"
+
+  - chain: dstnat
+    action: redirect
+    comment: "Przechwytywanie DNS (UDP)"
+    dst_address_type: "!local"
+    dst_port: "53"
+    in_interface_list: LISTA-LAN
+    protocol: udp
+
+  - chain: dstnat
+    action: redirect
+    comment: "Przechwytywanie DNS (TCP)"
+    dst_address_type: "!local"
+    dst_port: "53"
+    in_interface_list: LISTA-LAN
+    protocol: tcp
+
+# --- IPv4 Mangle Rules (MSS Clamping) ----------------------------------------
+# MSS clamping prevents TCP black-hole issues when packets traverse the ISP
+# tunnel. Values are tuned for WireGuard (1280) and regular LAN (1420).
+ipv4_mangle_rules:
+  - chain: forward
+    action: change-mss
+    comment: "[VPN-UP] Zastosuj maly MSS (IPv4) dla ruchu z VPN do WAN"
+    in_interface_list: LISTA-VPN
+    new_mss: 1280
+    out_interface_list: LISTA-WAN
+    protocol: tcp
+    tcp_flags: syn
+
+  - chain: forward
+    action: change-mss
+    comment: "[VPN-DOWN] Zastosuj maly MSS (IPv4) dla ruchu z WAN do VPN"
+    in_interface_list: LISTA-WAN
+    new_mss: 1280
+    out_interface_list: LISTA-VPN
+    protocol: tcp
+    tcp_flags: syn
+
+  - chain: forward
+    action: change-mss
+    comment: "[LAN-UP] MSS dla ruchu z LAN do WAN (IPv4)"
+    in_interface_list: LISTA-LAN
+    new_mss: 1420
+    out_interface_list: LISTA-WAN
+    passthrough: no
+    protocol: tcp
+    tcp_flags: syn
+
+  - chain: forward
+    action: change-mss
+    comment: "[LAN-DOWN] MSS dla ruchu z WAN do LAN (IPv4)"
+    in_interface_list: LISTA-WAN
+    new_mss: 1420
+    out_interface_list: LISTA-LAN
+    passthrough: no
+    protocol: tcp
+    tcp_flags: syn
+
+# --- Firewall Service Ports (connection tracking helpers) --------------------
+# Disabling these removes unnecessary ALG (Application Layer Gateway) modules
+# that create security risks (SIP/H323/PPTP are legacy protocols).
+firewall_service_ports:
+  - name: ftp
+    disabled: yes
+  - name: h323
+    disabled: yes
+  - name: sip
+    disabled: yes
+  - name: pptp
+    disabled: yes
+
+# ==============================================================================
+# IPV6 FIREWALL
+# ==============================================================================
+
+# --- IPv6 Filter Rules (strictly ordered) ------------------------------------
+ipv6_filter_rules:
+
+  # ---- OUTPUT chain ---------------------------------------------------------
+  - chain: output
+    action: jump
+    comment: "ICMPv6 OUTPUT CHAIN"
+    jump_target: ICMPv6-OUTPUT
+    protocol: icmpv6
+
+  # ---- FORWARD chain --------------------------------------------------------
+  - chain: forward
+    action: accept
+    comment: "VPN-WAN forward stub (disabled)"
+    in_interface_list: LISTA-VPN
+    out_interface_list: LISTA-WAN
+    disabled: yes
+
+  - chain: forward
+    action: accept
+    comment: "WAN-VPN forward stub (disabled)"
+    in_interface_list: LISTA-WAN
+    out_interface_list: LISTA-VPN
+    disabled: yes
+
+  - chain: forward
+    action: accept
+    comment: "allow establish related"
+    connection_state: "established,related"
+
+  - chain: forward
+    action: drop
+    comment: "drop invalid"
+    connection_state: "invalid"
+
+  - chain: forward
+    action: jump
+    comment: "ICMPv6 FORWARD CHAIN"
+    jump_target: ICMPv6-FORWARD
+    protocol: icmpv6
+
+  - chain: forward
+    action: jump
+    comment: "SEGMENTACJA LAN"
+    in_interface_list: LISTA-LAN
+    jump_target: FWD-LAN_SEGMENTATION
+    out_interface_list: LISTA-LAN
+
+  - chain: forward
+    action: accept
+    comment: "allow LAN to WAN"
+    in_interface_list: LISTA-LAN
+    out_interface_list: LISTA-WAN
+
+  - chain: forward
+    action: drop
+    comment: "drop all other forward"
+    log: yes
+    log_prefix: "IPv6_FW_DROP_ALL_FORWARD"
+
+  # ---- INPUT chain ----------------------------------------------------------
+  - chain: input
+    action: accept
+    comment: "allow WireGuard"
+    dst_port: "{{ network_topology.vpn.listen_port }}"
+    in_interface_list: LISTA-WAN
+    protocol: udp
+
+  - chain: input
+    action: accept
+    comment: "allow established, related"
+    connection_state: "established,related"
+
+  - chain: input
+    action: drop
+    comment: "drop invalid"
+    connection_state: "invalid"
+
+  - chain: input
+    action: jump
+    comment: "WAN LOG FILTER - IMPUT"
+    in_interface_list: LISTA-WAN
+    jump_target: LOG-FILTER-WAN-IMPUT
+
+  - chain: input
+    action: drop
+    comment: "wyciszenie_rozgloszenia_do_LAN"
+    dst_port: "5678"
+    in_interface_list: LISTA-LAN
+    protocol: udp
+
+  - chain: input
+    action: jump
+    comment: "ICMPv6 input chain"
+    jump_target: ICMPv6-INPUT
+    protocol: icmpv6
+
+  - chain: input
+    action: accept
+    comment: "allow FAILSAFE input form ether2"
+    in_interface: ether2
+
+  - chain: input
+    action: accept
+    comment: "allow LAN to DNS/NTP input"
+    dst_port: "53,123"
+    in_interface: "{{ network_topology.trusted.iface }}"
+    protocol: udp
+
+  - chain: input
+    action: accept
+    comment: "allow LAN to DNS/TCP input"
+    dst_port: "53"
+    in_interface: "{{ network_topology.trusted.iface }}"
+    protocol: tcp
+
+  - chain: input
+    action: accept
+    comment: "allow DHCPv6 port"
+    dst_port: "546"
+    in_interface_list: LISTA-WAN
+    protocol: udp
+
+  - chain: input
+    action: drop
+    comment: "drop all other input"
+    log: yes
+    log_prefix: "IPv6_drop_all_other_input"
+
+  # ---- Custom chain: ICMPv6-OUTPUT ------------------------------------------
+  - chain: ICMPv6-OUTPUT
+    action: accept
+    comment: "Allow Router Advertisement"
+    icmp_options: "134:0"
+    protocol: icmpv6
+
+  - chain: ICMPv6-OUTPUT
+    action: accept
+    comment: "Allow Neighbor Solicitation"
+    icmp_options: "135:0"
+    protocol: icmpv6
+
+  - chain: ICMPv6-OUTPUT
+    action: accept
+    comment: "Allow Neighbor Advertisement"
+    icmp_options: "136:0"
+    protocol: icmpv6
+
+  - chain: ICMPv6-OUTPUT
+    action: accept
+    comment: "Allow Ping Reply"
+    icmp_options: "129:0"
+    protocol: icmpv6
+
+  - chain: ICMPv6-OUTPUT
+    action: accept
+    comment: "Allow Dest. Unreachable"
+    icmp_options: "1:0-255"
+    protocol: icmpv6
+
+  - chain: ICMPv6-OUTPUT
+    action: accept
+    comment: "Allow Packet Too Big"
+    icmp_options: "2:0"
+    protocol: icmpv6
+
+  - chain: ICMPv6-OUTPUT
+    action: accept
+    comment: "Allow Time Exceeded"
+    icmp_options: "3:0-255"
+    protocol: icmpv6
+
+  - chain: ICMPv6-OUTPUT
+    action: return
+    comment: "RETURN ICMPv6 OUTPUT"
+
+  # ---- Custom chain: FWD-LAN_SEGMENTATION (IPv6 mirror) --------------------
+  - chain: FWD-LAN_SEGMENTATION
+    action: accept
+    comment: "allow trusted to server"
+    in_interface: "{{ network_topology.trusted.iface }}"
+    out_interface: "{{ network_topology.servers.iface }}"
+
+  - chain: FWD-LAN_SEGMENTATION
+    action: accept
+    comment: "allow guests to TV"
+    in_interface: "{{ network_topology.guests.iface }}"
+    out_interface: "{{ network_topology.iot.iface }}"
+    disabled: yes
+
+  - chain: FWD-LAN_SEGMENTATION
+    action: accept
+    comment: "allow trusted to printer"
+    in_interface: "{{ network_topology.trusted.iface }}"
+    out_interface: "{{ network_topology.iot.iface }}"
+    disabled: yes
+
+  - chain: FWD-LAN_SEGMENTATION
+    action: drop
+    comment: "segmentacja LAN"
+    in_interface_list: LISTA-LAN
+    out_interface_list: LISTA-LAN
+    log: yes
+    log_prefix: "IPv6_FW_DROP_LAN_TO_LAN"
+
+  - chain: FWD-LAN_SEGMENTATION
+    action: return
+    comment: "RETURN SEGMENTACJA LAN"
+
+  # ---- Custom chain: LOG-FILTER-WAN-IMPUT (IPv6 noise suppression) ----------
+  - chain: LOG-FILTER-WAN-IMPUT
+    action: drop
+    comment: "wyciszenie_rozgloszenia_do_WAN"
+    dst_port: "5678"
+    in_interface_list: LISTA-WAN
+    protocol: udp
+
+  - chain: LOG-FILTER-WAN-IMPUT
+    action: drop
+    comment: "wyciszenie_ACK_scan"
+    connection_state: "new"
+    in_interface_list: LISTA-WAN
+    protocol: tcp
+    tcp_flags: "ack,!syn"
+
+  - chain: LOG-FILTER-WAN-IMPUT
+    action: drop
+    comment: "Wyciszenie RA od ISP"
+    icmp_options: "134:0"
+    in_interface_list: LISTA-WAN
+    protocol: icmpv6
+
+  - chain: LOG-FILTER-WAN-IMPUT
+    action: return
+    comment: "RETURN LOG FILTER-WAN-IMPUT"
+
+  # ---- Custom chain: ICMPv6-INPUT -------------------------------------------
+  - chain: ICMPv6-INPUT
+    action: accept
+    comment: "Allow Router Solicitation"
+    icmp_options: "133:0"
+    protocol: icmpv6
+
+  - chain: ICMPv6-INPUT
+    action: accept
+    comment: "Allow Neighbor Solicitation"
+    icmp_options: "135:0"
+    protocol: icmpv6
+
+  - chain: ICMPv6-INPUT
+    action: accept
+    comment: "Allow Neighbor Advertisement (od ISP)"
+    icmp_options: "136:0"
+    protocol: icmpv6
+
+  - chain: ICMPv6-INPUT
+    action: accept
+    comment: "Allow Dest. Unreachable"
+    icmp_options: "1:0-255"
+    protocol: icmpv6
+
+  - chain: ICMPv6-INPUT
+    action: accept
+    comment: "Allow Packet Too Big"
+    icmp_options: "2:0"
+    protocol: icmpv6
+
+  - chain: ICMPv6-INPUT
+    action: accept
+    comment: "Allow Time Exceeded"
+    icmp_options: "3:0-255"
+    protocol: icmpv6
+
+  - chain: ICMPv6-INPUT
+    action: accept
+    comment: "Allow Ping from LAN"
+    icmp_options: "128:0"
+    in_interface_list: LISTA-LAN
+    protocol: icmpv6
+
+  - chain: ICMPv6-INPUT
+    action: accept
+    comment: "Allow ICMPv6 Multicast Listener Query (MLD)"
+    icmp_options: "130:0"
+    protocol: icmpv6
+
+  - chain: ICMPv6-INPUT
+    action: return
+    comment: "default action"
+
+  # ---- Custom chain: ICMPv6-FORWARD -----------------------------------------
+  - chain: ICMPv6-FORWARD
+    action: accept
+    comment: "Allow Dest. Unreachable"
+    icmp_options: "1:0-255"
+    protocol: icmpv6
+
+  - chain: ICMPv6-FORWARD
+    action: accept
+    comment: "Allow Packet Too Big"
+    icmp_options: "2:0"
+    protocol: icmpv6
+
+  - chain: ICMPv6-FORWARD
+    action: accept
+    comment: "Allow Time Exceeded"
+    icmp_options: "3:0-255"
+    protocol: icmpv6
+
+  - chain: ICMPv6-FORWARD
+    action: accept
+    comment: "Allow Ping Request"
+    icmp_options: "128:0"
+    protocol: icmpv6
+
+  - chain: ICMPv6-FORWARD
+    action: accept
+    comment: "Allow Ping Reply"
+    icmp_options: "129:0"
+    protocol: icmpv6
+
+  - chain: ICMPv6-FORWARD
+    action: return
+    comment: "default action"
+
+# --- IPv6 NAT Rules (both disabled — kept as preparedness stubs) -------------
+ipv6_nat_rules:
+  - chain: srcnat
+    action: masquerade
+    comment: "Obejscie bledu routingu"
+    out_interface_list: LISTA-WAN
+    disabled: yes
+
+  - chain: srcnat
+    action: masquerade
+    comment: "WireGuard - WAN"
+    out_interface_list: LISTA-WAN
+    src_address: "{{ wg_ipv6_subnet }}"
+    disabled: yes
+
+# --- IPv6 Mangle Rules (MSS Clamping) ----------------------------------------
+# IPv6 MSS values are lower than IPv4 due to IPv6 header overhead.
+ipv6_mangle_rules:
+  - chain: forward
+    action: change-mss
+    comment: "VPN MSS Clamping (Upload)"
+    in_interface_list: LISTA-VPN
+    new_mss: 1220
+    out_interface_list: LISTA-WAN
+    protocol: tcp
+    tcp_flags: syn
+
+  - chain: forward
+    action: change-mss
+    comment: "VPN MSS Clamping (Download)"
+    in_interface_list: LISTA-WAN
+    new_mss: 1220
+    out_interface_list: LISTA-VPN
+    protocol: tcp
+    tcp_flags: syn
+
+  - chain: forward
+    action: change-mss
+    comment: "IPv6 MSS Clamping (Upload)"
+    in_interface_list: LISTA-LAN
+    new_mss: 1448
+    out_interface_list: LISTA-WAN
+    passthrough: no
+    protocol: tcp
+    tcp_flags: syn
+
+  - chain: forward
+    action: change-mss
+    comment: "IPv6 MSS Clamping (Download)"
+    in_interface_list: LISTA-WAN
+    new_mss: 1448
+    out_interface_list: LISTA-LAN
+    passthrough: no
+    protocol: tcp
+    tcp_flags: syn
